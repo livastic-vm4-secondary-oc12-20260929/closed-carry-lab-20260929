@@ -1,0 +1,18 @@
+name: VM4 Check Suite Cross-Suite Failure 261008
+
+on:
+  pull_request:
+    types: [edited]
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: vm4-closed-carry-gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deterministic cross-suite freshness failure
+        run: |
+          echo "VM4 cross-suite freshness probe: deliberate failure"
+          exit 41
