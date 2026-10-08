@@ -2,7 +2,7 @@ pull_request_rules:
   - name: vm4-checksuite-freshness-observe-261008
     conditions:
       - title = VM4 NEVER CHECKSUITE FRESHNESS 261008
-      - check-success = @github-actions/test-insights-alias
+      - check-success = @github-actions/vm4-closed-carry-gate
     actions:
       comment:
         message: VM4 checksuite freshness observer should never execute
