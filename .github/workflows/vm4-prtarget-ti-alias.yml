@@ -1,0 +1,54 @@
+name: VM4 PR Target Test Insights Alias
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: VM4 trusted control mode
+        required: true
+        default: BASELINE
+        type: choice
+        options:
+          - BASELINE
+          - TRUSTED_FAIL
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  test-insights-alias:
+    runs-on: ubuntu-latest
+    env:
+      MERGIFY_TOKEN: ${{ secrets.MERGIFY_TOKEN }}
+      VM4_MODE: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.title || inputs.mode }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install current pytest-mergify
+        run: python -m pip install --disable-pip-version-check pytest pytest-mergify==2026.9.24.1
+      - name: Run trusted base-owned test fixture
+        shell: bash
+        run: |
+          cat > test_vm4_prtarget_alias.py <<'PY'
+          import os
+          import pytest
+
+          MODE = os.environ.get("VM4_MODE", "")
+          _count = 0
+
+          def test_baseline():
+              assert True
+
+          if MODE != "BASELINE":
+              def test_alias_target():
+                  global _count
+                  _count += 1
+                  if "VM4_ALIAS_FLAKY" in MODE and _count == 1:
+                      pytest.fail("controlled first-attempt failure")
+                  if MODE == "TRUSTED_FAIL":
+                      pytest.fail("trusted main deterministic failure")
+          PY
+          python -m pytest -q test_vm4_prtarget_alias.py

@@ -1,93 +1,117 @@
+pull_request_rules:
+  - name: vm4-checksuite-freshness-observe-261008
+    conditions:
+      - title = VM4 NEVER CHECKSUITE FRESHNESS 261008
+      - check-success = @github-actions/vm4-closed-carry-gate
+    actions:
+      comment:
+        message: VM4 checksuite freshness observer should never execute
+
+  - name: vm4-wa-copy-source-head-binding-20261008
+    conditions:
+      - title = VM4 COPY STALE HEAD 20261008
+      - author = livastic-vm4-secondary-oc12-20260929
+      - check-success = vm4-closed-carry-gate
+    actions:
+      copy:
+        branches:
+          - r25-external-config-20261002
+        ignore_conflicts: false
+        report_mode:
+          - check
+          - comment
+
+  - name: vm4-labelcopier-policy-merge-261008
+    conditions:
+      - base = vm4-labelcopier-base-261008
+      - title = VM4 LABELCOPIER TARGET 261008
+      - label = documentation
+    actions:
+      merge:
+        method: merge
+
 merge_queue:
   max_parallel_checks: 2
-  skip_intermediate_results: false
-  mode: isolated
+  skip_intermediate_results: true
+  mode: serial
+
+conflict_resolvers:
+  - paths:
+      - pnpm-lock.yaml
+    strategy: pnpm
+  - paths:
+      - uv.lock
+      - pyproject.toml
+    strategy: uv
+  - paths:
+      - vm4-json-surrogate-policy.json
+    strategy: json
+  - paths:
+      - vm4-skip-discard-policy.txt
+    strategy: theirs
 
 queue_rules:
-  - name: r16-strict
-    batch_size: 1
-    batch_max_wait_time: 30 sec
+  - name: vm4-pnpm-integrity-control-261006
+    batch_size: 2
+    batch_max_wait_time: 30 min
     queue_conditions:
-      - title = VM4 R15 NORMAL SECOND 20261001
+      - title = VM4 PNPM INTEGRITY CONTROL 261006
     merge_conditions:
-      - check-success = vm4-closed-carry-gate
-      - schedule = 10:00-23:59
+      - check-success = vm4-never-pnpm-integrity
+    merge_method: merge-batch
+
+  - name: vm4-pnpm-integrity-target-261006
+    batch_size: 2
+    batch_max_wait_time: 30 min
+    queue_conditions:
+      - title = VM4 PNPM INTEGRITY TARGET 261006
+    merge_conditions:
+      - check-success = vm4-never-pnpm-integrity
+    merge_method: merge-batch
+
+  - name: vm4-uv-provenance-target-261007
+    batch_size: 2
+    batch_max_wait_time: 30 min
+    queue_conditions:
+      - title = VM4 UV PROVENANCE TARGET 261007
+    merge_conditions:
+      - check-success = vm4-never-uv-provenance
+    merge_method: merge-batch
+
+  - name: vm4-crjson-surrogate-target-261007
+    batch_size: 2
+    batch_max_wait_time: 30 min
+    queue_conditions:
+      - title = VM4 CRJSON SURROGATE TARGET 261007
+    merge_conditions:
+      - check-success = vm4-never-json-surrogate
+    merge_method: merge-batch
+
+  - name: vm4-ruleset-bypass-injection-261007
+    branch_protection_injection_mode: queue
+    batch_size: 1
+    batch_max_wait_time: 30 min
+    queue_conditions:
+      - title = VM4 RULESET BYPASS INJECTION 261007
+    merge_conditions:
+      - check-success = vm4-never-ruleset-bypass
     merge_method: merge
 
-  - name: r16-weak
+  - name: vm4-skip-discard-target-261007
     batch_size: 1
-    batch_max_wait_time: 30 sec
+    batch_max_wait_time: 30 min
     queue_conditions:
-      - title = VM4 conflict resolver self-policy B 20261001
+      - title = VM4 SKIP DISCARD TARGET 261007
     merge_conditions:
-      - schedule = 10:00-23:59
-    merge_method: merge
+      - check-success = ordinary-script
+    merge_method: merge-batch
 
-  - name: r17-strict
-    batch_size: 1
-    batch_max_wait_time: 30 sec
+  - name: vm4-json-protected-landing-261007
+    branch_protection_injection_mode: merge
+    batch_size: 2
+    batch_max_wait_time: 30 min
     queue_conditions:
-      - title = VM4 R17 STRICT 20261001
+      - title = VM4 JSON PROTECTED LANDING 261007
     merge_conditions:
-      - check-success = vm4-closed-carry-gate
-      - schedule = 13:00-23:59
-    merge_method: merge
-
-  - name: r17-high
-    batch_size: 1
-    batch_max_wait_time: 30 sec
-    queue_conditions:
-      - title = VM4 R17 HIGH 20261001
-    merge_conditions:
-      - schedule = 00:00-23:59
-    merge_method: merge
-
-  - name: r17-weak
-    batch_size: 1
-    batch_max_wait_time: 30 sec
-    queue_conditions:
-      - title = VM4 R17 WEAK 20261001
-    merge_conditions:
-      - schedule = 00:00-23:59
-    merge_method: merge
-
-  - name: r23-mode-switch
-    batch_size: 1
-    batch_max_wait_time: 30 sec
-    queue_conditions:
-      - title = VM4 R23 MODE SWITCH 20261002
-    merge_conditions:
-      - check-success = vm4-closed-carry-gate
-      - schedule = 23:45-23:59
-    merge_method: merge
-
-  - name: r25-weak
-    batch_size: 1
-    batch_max_wait_time: 30 sec
-    queue_conditions:
-      - title = VM4 R25 WEAK 20261002
-    merge_conditions:
-      - schedule = 00:00-23:59
-    merge_method: merge
-
-  - name: r25-strict
-    batch_size: 1
-    batch_max_wait_time: 30 sec
-    queue_conditions:
-      - title = VM4 R25 STRICT 20261002
-    merge_conditions:
-      - check-success = vm4-closed-carry-gate
-      - schedule = 00:00-23:59
-    merge_method: merge
-
-priority_rules:
-  - name: r17 checked-car interrupter
-    conditions:
-      - title = VM4 R17 HIGH 20261001
-    priority: high
-    allow_checks_interruption: true
-
-  - name: r17 normal lane
-    conditions:
-      - title != VM4 R17 HIGH 20261001
-    priority: low
+      - check-success = vm4-json-authz-gate
+    merge_method: merge-batch

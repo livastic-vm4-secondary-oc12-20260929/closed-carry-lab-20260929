@@ -1,0 +1,17 @@
+name: VM4 Current Queue Trust
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  ordinary-script:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run repository ordinary script
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash ci/vm4-current-queue-trust.sh

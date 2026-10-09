@@ -1,0 +1,52 @@
+name: VM4 Empty Include Scope Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  detect-scopes:
+    runs-on: ubuntu-24.04
+    outputs:
+      protected_scope: ${{ fromJSON(steps.scopes.outputs.scopes)['protected-scope'] }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Detect scopes with released CLI
+        id: scopes
+        uses: Mergifyio/gha-mergify-ci@v25
+        with:
+          action: scopes
+          mergify_cli_version: "2026.10.1"
+
+  protected-tests:
+    needs: detect-scopes
+    if: ${{ needs.detect-scopes.outputs.protected_scope == 'true' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Deliberate protected-scope failure
+        run: |
+          echo 'protected-scope job executed as intended'
+          exit 1
+
+  ci-gate:
+    if: ${{ always() }}
+    needs:
+      - detect-scopes
+      - protected-tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Aggregate protected scope policy
+        env:
+          DETECT_RESULT: ${{ needs.detect-scopes.result }}
+          PROTECTED_RESULT: ${{ needs.protected-tests.result }}
+        run: |
+          echo "detect-scopes=$DETECT_RESULT"
+          echo "protected-tests=$PROTECTED_RESULT"
+          test "$DETECT_RESULT" = success
+          test "$PROTECTED_RESULT" != failure
+          test "$PROTECTED_RESULT" != cancelled

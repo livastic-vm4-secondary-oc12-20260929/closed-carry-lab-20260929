@@ -1,0 +1,45 @@
+version: 2.1
+
+jobs:
+  vm4-circleci-quarantine-probe:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - run:
+          name: Install Mergify CLI 2026.9.10.1
+          command: |
+            curl -fsSL https://raw.githubusercontent.com/Mergifyio/mergify-cli/main/install.sh | MERGIFY_VERSION=2026.9.10.1 sh
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$BASH_ENV"
+            source "$BASH_ENV"
+            mergify --version
+      - run:
+          name: Show CircleCI provider context
+          command: |
+            printf 'CIRCLE_BRANCH=%s\n' "$CIRCLE_BRANCH"
+            printf 'CIRCLE_SHA1=%s\n' "$CIRCLE_SHA1"
+            printf 'CIRCLE_PULL_REQUEST=%s\n' "$CIRCLE_PULL_REQUEST"
+      - run:
+          name: Build deterministic failing JUnit
+          command: |
+            cat > /tmp/vm4-circleci-quarantine.xml <<'XML'
+            <?xml version="1.0" encoding="UTF-8"?>
+            <testsuite name="vm4-circleci-branch-quarantine" tests="1" failures="1">
+              <testcase classname="security" name="vm4_circleci_branch_quarantine_probe" time="0.01">
+                <failure message="protected behavior must fail">VM4 intentional failing control</failure>
+              </testcase>
+            </testsuite>
+            XML
+      - run:
+          name: Mergify quarantine decision
+          command: |
+            source "$BASH_ENV"
+            mergify ci junit-process \
+              --repository vm4-oc12-mfy-20260929/closed-carry-lab-20260929 \
+              --test-exit-code 1 \
+              /tmp/vm4-circleci-quarantine.xml
+
+workflows:
+  vm4-circleci-quarantine:
+    jobs:
+      - vm4-circleci-quarantine-probe

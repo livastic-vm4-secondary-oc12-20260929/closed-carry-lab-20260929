@@ -1,0 +1,112 @@
+name: VM4 PR Target AutoQ Poison V2
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: VM4 trusted v2/v3 control mode
+        required: true
+        default: BASELINE
+        type: choice
+        options:
+          - BASELINE
+          - TRUSTED_FAIL
+          - TRUSTED_FAIL_V3
+          - RETRY_AB
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  test-insights-poison-v2:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.mode != 'RETRY_AB' }}
+    runs-on: ubuntu-latest
+    env:
+      MERGIFY_TOKEN: ${{ secrets.MERGIFY_TOKEN }}
+      VM4_MODE: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.title || inputs.mode }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install current pytest-mergify
+        run: python -m pip install --disable-pip-version-check pytest pytest-mergify==2026.9.24.1
+      - name: Run trusted base-owned v2/v3 test fixture
+        shell: bash
+        run: |
+          cat > test_vm4_prtarget_poison_v2_261004.py <<'PY'
+          import os
+          import pytest
+
+          MODE = os.environ.get("VM4_MODE", "")
+
+          def test_prtarget_poison_v2_261004():
+              if "VM4_POISON_V2_FLAKY" in MODE:
+                  pytest.fail("external PR poisoned main v2")
+              if MODE == "TRUSTED_FAIL":
+                  pytest.fail("trusted main v2 deterministic failure")
+
+          def test_prtarget_broken_v3_261004():
+              if "VM4_POISON_V3_BROKEN" in MODE:
+                  pytest.fail("external PR poisoned main broken v3")
+              if MODE == "TRUSTED_FAIL_V3":
+                  pytest.fail("trusted main v3 deterministic failure")
+          PY
+          python -m pytest -q test_vm4_prtarget_poison_v2_261004.py
+
+  retry-consumer-ab:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'RETRY_AB' }}
+    runs-on: ubuntu-latest
+    env:
+      MERGIFY_TOKEN: ${{ secrets.MERGIFY_TOKEN }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install current pytest-mergify
+        run: python -m pip install --disable-pip-version-check pytest pytest-mergify==2026.9.24.1
+      - name: Compare fresh control with poisoned Test Retry identity
+        shell: bash
+        run: |
+          cat > test_vm4_retry_control_261004.py <<'PY'
+          ATTEMPTS = 0
+
+          def test_retry_control_261004():
+              global ATTEMPTS
+              ATTEMPTS += 1
+              assert ATTEMPTS >= 2, "fresh control fails first attempt"
+          PY
+
+          cat > test_vm4_prtarget_poison_v2_261004.py <<'PY'
+          ATTEMPTS = 0
+
+          def test_prtarget_poison_v2_261004():
+              global ATTEMPTS
+              ATTEMPTS += 1
+              assert ATTEMPTS >= 2, "poisoned identity fails first attempt"
+          PY
+
+          set +e
+          python -m pytest -q test_vm4_retry_control_261004.py > control.log 2>&1
+          control_exit=$?
+          python -m pytest -q test_vm4_prtarget_poison_v2_261004.py > treatment.log 2>&1
+          treatment_exit=$?
+          set -e
+
+          echo "VM4_RETRY_AB_CONTROL_EXIT=${control_exit}"
+          echo "VM4_RETRY_AB_TREATMENT_EXIT=${treatment_exit}"
+          echo "=== CONTROL TAIL ==="
+          tail -n 100 control.log
+          echo "=== TREATMENT TAIL ==="
+          tail -n 120 treatment.log
+
+          if [ "${control_exit}" -eq 0 ]; then
+            echo "Unexpected: fresh control was rescued or passed"
+            exit 31
+          fi
+          if [ "${treatment_exit}" -ne 0 ]; then
+            echo "Treatment not rescued; poisoned Detection state did not reach Test Retry verdict consumer"
+            exit 32
+          fi
+          echo "POSITIVE: poisoned identity was rescued while fresh control remained failing"
